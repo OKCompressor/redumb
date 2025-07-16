@@ -1,4 +1,4 @@
-# src/lib.rs
+// src/lib.rs
 // Main library entry
 pub mod io;
 pub mod replace;

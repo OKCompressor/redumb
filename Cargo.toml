@@ -1,10 +1,12 @@
 [package]
 name = "redumb"
-version = "0.1.0"
+version = "0.3.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0"
 regex = "1.8"
 base64 = "0.21"
 indexmap = "1.9"
 thiserror = "1.0"
+indicatif = "0.17"

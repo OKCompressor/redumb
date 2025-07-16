@@ -3,6 +3,10 @@ name = "redumb"
 version = "0.3.0"
 edition = "2024"
 
+[lib]
+name      = "redumb"
+crate-type = ["cdylib"]
+
 [dependencies]
 anyhow = "1.0"
 regex = "1.8"

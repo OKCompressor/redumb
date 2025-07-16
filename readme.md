@@ -59,10 +59,21 @@ After concatenating and deduplicating all chunked dicts:
     Encode & restore chunks concurrently with Rayon for ½ wall-time or better.
 
     Alternative token mappings
-    Experiment with fixed-width (u16) or varint codes for sub-byte savings.
+    Experiment with VarInt-G8IU, SIMD-BP128 or varint codes for sub-byte savings.
 
     Test enwik8 & enwik7
     Verify scaling and wall-time improvements on smaller Wikipedia slices.
+
+	Make it ffi lib to use from python
+		cargo build --release --features ffi
+		# produces target/release/libredumb.{so|dylib|dll}
+
+		cargo install cbindgen            # once
+cbindgen --config cbindgen.toml \
+         --crate redumb           \
+         --output redumb.h
+
+
 
 Redumb is your blazing-fast Rust preprocessor for modern text compression pipelines.
 

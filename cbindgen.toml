@@ -1,0 +1,4 @@
+language = "C"
+include_guard = "REDUMB_H"
+sys_includes = ["stdint.h", "stddef.h"]
+

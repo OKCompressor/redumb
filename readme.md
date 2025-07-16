@@ -73,6 +73,11 @@ cbindgen --config cbindgen.toml \
          --crate redumb           \
          --output redumb.h
 
+## TODO
+
+- **Tokenization Performance**  
+  Our current pipeline relies on `regex::find_iter` for token extraction, which benchmarks at only ~1–5 MB/s on large corpora (e.g. enwik8). In contrast, a hand-rolled streaming byte-level scanner can hit 100–200 MB/s by avoiding backtracking and UTF-8 overhead. As a next step, we should prototype a manual scanner or integrate the [`logos`](https://github.com/maciejhirsz/logos) crate—a DFA-based lexer that often runs at 50–100 MB/s—to dramatically accelerate tokenization.
+	
 
 
 Redumb is your blazing-fast Rust preprocessor for modern text compression pipelines.

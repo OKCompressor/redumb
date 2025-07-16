@@ -4,8 +4,8 @@ use anyhow::Result;
 use crate::replace::{replace_special_chars, restore_special_chars};
 use crate::dictionary::Dictionary;
 use regex::Regex;
-use std::fs::{File, create_dir_all, metadata};
-use std::io::{Read, Write, BufWriter};
+use std::fs::{self, File, create_dir_all, metadata};
+use std::io::{Read, Write, BufWriter, copy};
 use std::path::Path;
 use indicatif::{ProgressBar, ProgressStyle};
 
@@ -125,15 +125,15 @@ pub fn transform_chunked(
     Ok(())
 }
 
-/// Reads each chunk’s `.dict` and `.enc` in index order, stitches the tokens back
-/// together, reverses placeholders, and writes the full reconstructed text.
+/// Reads each chunk’s `.dict` and `.enc` in index order, restores each chunk
+/// separately to a temp file, then concatenates all temp files into `output_file`.
 pub fn restore_chunked(
     dict_dir: &str,
     encoded_dir: &str,
     output_file: &str,
 ) -> Result<()> {
-    // Gather and sort chunk indices
-    let mut chunks: Vec<usize> = std::fs::read_dir(encoded_dir)?
+    // 1) Collect and sort the chunk indices
+    let mut chunks: Vec<usize> = fs::read_dir(encoded_dir)?
         .filter_map(|e| e.ok())
         .filter_map(|e| {
             let name = e.file_name().into_string().ok()?;
@@ -148,40 +148,61 @@ pub fn restore_chunked(
         .collect();
     chunks.sort();
 
-    // Prepare a progress bar over chunks
-    let pb = ProgressBar::new(chunks.len() as u64);
-    pb.set_style(ProgressStyle::with_template(
-        "{spinner:.green} [{elapsed_precise}] [{bar:40.magenta/blue}] {pos}/{len} chunks"
-    )?
-    .progress_chars("=>-"));
-
-    let mut full = String::new();
-    for idx in chunks {
-        // Load this chunk’s dictionary
-        let dict_path = Path::new(dict_dir).join(format!("chunk_{:03}.dict", idx));
-        let dict_txt = std::fs::read_to_string(dict_path)?;
+    // 2) Process each chunk into a temp file:
+    //    e.g. if output_file = "reconstructed.txt",
+    //    temps will be "reconstructed.txt.part_000", etc.
+    let mut part_paths = Vec::with_capacity(chunks.len());
+    for &idx in &chunks {
+        // Load this chunk's dictionary
+        let dict_path = Path::new(dict_dir)
+            .join(format!("chunk_{:03}.dict", idx));
+        let dict_txt = fs::read_to_string(&dict_path)?;
         let toks: Vec<String> = dict_txt.lines().map(String::from).collect();
         let dict = Dictionary::new(&toks);
 
         // Read encoded indices
-        let enc_path = Path::new(encoded_dir).join(format!("chunk_{:03}.enc", idx));
-        let enc_txt = std::fs::read_to_string(enc_path)?;
+        let enc_path = Path::new(encoded_dir)
+            .join(format!("chunk_{:03}.enc", idx));
+        let enc_txt = fs::read_to_string(&enc_path)?;
+
+        // Rebuild token stream
+        let mut chunk_buf = String::new();
         for id_str in enc_txt.split_whitespace() {
             if let Ok(i) = id_str.parse::<usize>() {
                 if let Some(tok) = dict.idx_to_token.get(i) {
-                    full.push_str(tok);
+                    chunk_buf.push_str(tok);
                 }
             }
         }
 
-        pb.inc(1);
+        // Undo placeholders for this chunk
+        let restored_chunk = restore_special_chars(&chunk_buf);
+
+        // Write to a temp part file
+        let part_path = format!("{}.part_{:03}", output_file, idx);
+        {
+            let mut part_w = BufWriter::new(File::create(&part_path)?);
+            part_w.write_all(restored_chunk.as_bytes())?;
+            part_w.flush()?;
+        }
+        part_paths.push(part_path);
     }
 
-    pb.finish_and_clear();
+    // 3) Concatenate all part files into the final output_file
+    {
+        let mut out_w = BufWriter::new(File::create(output_file)?);
+        for part in &part_paths {
+            let mut part_f = File::open(part)?;
+            copy(&mut part_f, &mut out_w)?;
+        }
+        out_w.flush()?;
+    }
 
-    // Undo placeholders and write out
-    let original = restore_special_chars(&full);
-    std::fs::write(output_file, original)?;
+    // 4) Optionally remove temp part files
+    for part in part_paths {
+        let _ = fs::remove_file(part);
+    }
+
     Ok(())
 }
 

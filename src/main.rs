@@ -4,6 +4,7 @@ fn print_usage() {
     eprintln!("Usage:");
     eprintln!("  redumb encode <input_file> <dict_dir> <sorted_dict_dir> <encoded_dir>");
     eprintln!("  redumb restore <dict_dir> <encoded_dir> <output_file>");
+    eprintln!("  redumb merge-dicts <chunked_dict_dir> <output_dict_file>");
 }
 
 fn main() {
@@ -37,6 +38,16 @@ fn main() {
                 std::process::exit(1);
             }
         }
+		"merge-dicts" => {
+				    if args.len() != 4 {
+				        print_usage();
+				        std::process::exit(1);
+				    }
+				    if let Err(e) = redumb::process::merge_dicts(&args[2], &args[3]) {
+				        eprintln!("Error merging dicts: {}", e);
+				        std::process::exit(1);
+				    }
+				}
         _ => {
             print_usage();
             std::process::exit(1);

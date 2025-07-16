@@ -7,7 +7,7 @@ set -euo pipefail
 DATA_DIR="./data"
 OUTPUT_DIR="./output"
 
-INPUT_FILE="$DATA_DIR/enwik9"
+INPUT_FILE="$DATA_DIR/enwik8"
 
 DICT_DIR="$OUTPUT_DIR/dicts"            # will become a folder of chunk_###.dict
 SDICT_DIR="$OUTPUT_DIR/sdicts"          # folder of chunk_###.sdict

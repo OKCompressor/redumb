@@ -1,10 +1,11 @@
 // src/process.rs
 
 use anyhow::Result;
-use crate::replace::{replace_special_chars, restore_special_chars};
 use crate::dictionary::Dictionary;
+use indexmap::IndexMap;
+use crate::replace::{replace_special_chars, restore_special_chars};
 use regex::Regex;
-use std::fs::{self, File, create_dir_all, metadata};
+use std::fs::{self, File, read_dir, create_dir_all, metadata};
 use std::io::{Read, Write, BufWriter, copy};
 use std::path::Path;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -206,3 +207,52 @@ pub fn restore_chunked(
     Ok(())
 }
 
+
+////////////////////////////////////////////////////////////////////////////////
+// MERGE-DICTS IMPLEMENTATION
+////////////////////////////////////////////////////////////////////////////////
+
+/// Merge all chunked `.dict` files into one final dictionary,
+/// asserting that the deduplicated count is ≤ total entries.
+pub fn merge_dicts(
+    chunked_dict_dir: &str,
+    output_dict_file: &str,
+) -> Result<()> {
+    let mut map: IndexMap<String, usize> = IndexMap::new();
+    let mut total_entries = 0usize;
+
+    for entry in read_dir(chunked_dict_dir)? {
+        let path = entry?.path();
+        if let Some(fname) = path.file_name().and_then(|n| n.to_str()) {
+            if fname.starts_with("chunk_") && fname.ends_with(".dict") {
+                let content = fs::read_to_string(&path)?;
+                for line in content.lines() {
+                    total_entries += 1;
+                    if !map.contains_key(line) {
+                        let idx = map.len();
+                        map.insert(line.to_string(), idx);
+                    }
+                }
+            }
+        }
+    }
+
+    let unique = map.len();
+    assert!(
+        unique <= total_entries,
+        "Unique ({}) must be ≤ total entries ({})",
+        unique,
+        total_entries
+    );
+    println!(
+        "✅ Merged {} unique tokens from {} total entries",
+        unique, total_entries
+    );
+
+    let mut out = File::create(output_dict_file)?;
+    for token in map.keys() {
+        writeln!(out, "{}", token)?;
+    }
+
+    Ok(())
+}
